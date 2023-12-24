@@ -1,12 +1,12 @@
 import os
 import cv2
 import torch
+import copy
 
 from modules import devices
 from modules.modelloader import load_file_from_url
 from annotator.annotator_path import models_path
 from transformers import CLIPVisionModelWithProjection, CLIPVisionConfig, CLIPImageProcessor
-
 
 config_clip_g = {
   "attention_dropout": 0.0,
@@ -77,13 +77,23 @@ downloads = {
     'clip_h': 'https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/pytorch_model.bin'
 }
 
-
 clip_vision_h_uc = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'clip_vision_h_uc.data')
 clip_vision_h_uc = torch.load(clip_vision_h_uc,  map_location=torch.device('cuda' if torch.cuda.is_available() else 'cpu'))['uc']
 
 clip_vision_vith_uc = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'clip_vision_vith_uc.data')
 clip_vision_vith_uc = torch.load(clip_vision_vith_uc, map_location=torch.device('cuda' if torch.cuda.is_available() else 'cpu'))['uc']
 
+#JUMPMOD CACHE
+cachemodel = {}
+cachemodel['processor'] = CLIPImageProcessor(crop_size=224,
+                                            do_center_crop=True,
+                                            do_convert_rgb=True,
+                                            do_normalize=True,
+                                            do_resize=True,
+                                            image_mean=[0.48145466, 0.4578275, 0.40821073],
+                                            image_std=[0.26862954, 0.26130258, 0.27577711],
+                                            resample=3,
+                                            size=224)
 
 class ClipVisionDetector:
     def __init__(self, config):
@@ -98,17 +108,13 @@ class ClipVisionDetector:
         if not os.path.exists(file_path):
             load_file_from_url(url=self.download_link, model_dir=self.model_path, file_name=self.file_name)
         config = CLIPVisionConfig(**self.config)
-        self.model = CLIPVisionModelWithProjection(config)
-        self.processor = CLIPImageProcessor(crop_size=224,
-                                            do_center_crop=True,
-                                            do_convert_rgb=True,
-                                            do_normalize=True,
-                                            do_resize=True,
-                                            image_mean=[0.48145466, 0.4578275, 0.40821073],
-                                            image_std=[0.26862954, 0.26130258, 0.27577711],
-                                            resample=3,
-                                            size=224)
+        
+        #JUMPMOD CACHE
+        if config.model_type not in cachemodel:
+            cachemodel[config.model_type] = CLIPVisionModelWithProjection(config)
 
+        self.model = cachemodel[config.model_type]
+        self.processor = cachemodel['processor']
         sd = torch.load(file_path, map_location=torch.device('cpu'))
         self.model.load_state_dict(sd, strict=False)
         del sd
@@ -117,8 +123,9 @@ class ClipVisionDetector:
         self.model.cpu()
 
     def unload_model(self):
-        if self.model is not None:
-            self.model.to('meta')
+        print("JUMPMOD NO UNLOAD")
+        #if self.model is not None:
+            #self.model.to('meta')
 
     def __call__(self, input_image):
         with torch.no_grad():
