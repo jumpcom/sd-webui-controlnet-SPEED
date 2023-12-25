@@ -85,15 +85,7 @@ clip_vision_vith_uc = torch.load(clip_vision_vith_uc, map_location=torch.device(
 
 #JUMPMOD CACHE
 cachemodel = {}
-cachemodel['processor'] = CLIPImageProcessor(crop_size=224,
-                                            do_center_crop=True,
-                                            do_convert_rgb=True,
-                                            do_normalize=True,
-                                            do_resize=True,
-                                            image_mean=[0.48145466, 0.4578275, 0.40821073],
-                                            image_std=[0.26862954, 0.26130258, 0.27577711],
-                                            resample=3,
-                                            size=224)
+cachemodel['processor'] = None
 
 class ClipVisionDetector:
     def __init__(self, config):
@@ -114,6 +106,18 @@ class ClipVisionDetector:
             cachemodel[config.model_type] = CLIPVisionModelWithProjection(config)
 
         self.model = cachemodel[config.model_type]
+
+        if cachemodel['processor'] is None:
+            cachemodel['processor'] = CLIPImageProcessor(crop_size=224,
+                                            do_center_crop=True,
+                                            do_convert_rgb=True,
+                                            do_normalize=True,
+                                            do_resize=True,
+                                            image_mean=[0.48145466, 0.4578275, 0.40821073],
+                                            image_std=[0.26862954, 0.26130258, 0.27577711],
+                                            resample=3,
+                                            size=224)
+                                            
         self.processor = cachemodel['processor']
         sd = torch.load(file_path, map_location=torch.device('cpu'))
         self.model.load_state_dict(sd, strict=False)
